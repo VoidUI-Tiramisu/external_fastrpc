@@ -1,0 +1,5 @@
+cc_library_headers {
+    name: "libfastrpcshippable_headers",
+    export_include_dirs: ["inc"],
+    vendor_available: true,
+}
