@@ -179,6 +179,7 @@
 #define AEE_EEVENTREAD		 (AEE_EOFFSET + 0x06F)   /// event read failed
 #define AEE_EMAXBUFS		 (AEE_EOFFSET + 0x070)   /// Maximum buffers
 #define AEE_EINVARGS		 (AEE_EOFFSET + 0x071)   /// Invalid Arguments
+#define AEE_ECONNREFUSED         (AEE_EOFFSET + 0x072)   /// Connection refused to DSP
 
 #define AEE_ESMD_OFFSET		     (AEE_EOFFSET + 0x100)   /// SMD errors offset
 #define AEE_ESMDBADPACKET	     (AEE_EOFFSET + 0x101)   /// SMD invalid packet size
