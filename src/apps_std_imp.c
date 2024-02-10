@@ -82,6 +82,10 @@
 
 #define ION_HEAP_ID_QSEECOM 27
 
+#define OEM_CONFIG_FILE_NAME   "oemconfig.so"
+#define TESTSIG_FILE_NAME      "testsig"
+#define RPC_VERSION_FILE_NAME  "librpcversion_skel.so"
+
 #define FREEIF(pv) \
    do {\
       if(pv) { \
@@ -746,7 +750,11 @@ bail:
    FREEIF(absName);
    FREEIF(dirListBuf);
    if (nErr != AEE_SUCCESS) {
-	VERIFY_IPRINTF("Error %x: fopen failed for %s. (%s)", nErr, name, strerror(ERRNO));
+      if (ERRNO != ENOENT ||
+         (std_strncmp(name, OEM_CONFIG_FILE_NAME, std_strlen(OEM_CONFIG_FILE_NAME)) != 0
+         && std_strncmp(name, RPC_VERSION_FILE_NAME, std_strlen(RPC_VERSION_FILE_NAME)) != 0
+         && std_strncmp(name, TESTSIG_FILE_NAME, std_strlen(TESTSIG_FILE_NAME)) != 0))
+          VERIFY_IPRINTF("Error %x: fopen failed for %s. (%s)", nErr, name, strerror(ERRNO));
    }
    return nErr;
 }

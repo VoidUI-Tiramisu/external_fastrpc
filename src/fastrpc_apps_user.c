@@ -90,6 +90,7 @@
 #define INVALID_KEY    (pthread_key_t)(-1)
 
 #define MAX_DMA_HANDLES 256
+#define MAX_DLERRSTR_LEN 255
 
 #define FASTRPC_TRACE_INVOKE_START "fastrpc_trace_invoke_start"
 #define FASTRPC_TRACE_INVOKE_END   "fastrpc_trace_invoke_end"
@@ -375,6 +376,7 @@ void *remote_register_fd(int fd, int size) {
 static void remote_register_buf_common(void* buf, int size, int fd, int attr) {
    int nErr = 0;
    VERIFY(!fastrpc_init_once());
+   VERIFYC(NULL != buf, AEE_EBADPARM);
    if(fd != -1) {
       struct mem_to_fd* tofd;
       int fdfound = 0;
@@ -558,11 +560,31 @@ static int fdlist_fd_from_buf(void* buf, int bufLen, int* nova, void** base, int
    return 0;
 }
 
+static inline int is_valid_local_handle(struct handle_info* hinfo) {
+	int domain = 0;
+	QNode* pn = NULL;
+	struct handle_info* hi = NULL;
+
+	for (domain = 0; domain < NUM_DOMAINS_EXTEND; domain++) {
+		pthread_mutex_lock(&hlist[domain].mut);
+		QLIST_FOR_ALL(&hlist[domain].ql, pn) {
+			hi = STD_RECOVER_REC(struct handle_info, qn, pn);
+			if (hi == hinfo) {
+				pthread_mutex_unlock(&hlist[domain].mut);
+				return 1;
+			}
+		}
+		pthread_mutex_unlock(&hlist[domain].mut);
+	}
+	return 0;
+}
+
 static int verify_local_handle(remote_handle64 local) {
 	struct handle_info* hinfo = (struct handle_info*)(uintptr_t)local;
 	int nErr = AEE_SUCCESS;
 
 	VERIFYC(hinfo, AEE_EMEMPTR);
+	VERIFYC(is_valid_local_handle(hinfo), AEE_EBADHANDLE);
 	VERIFYC((hinfo->hlist >= &hlist[0]) && (hinfo->hlist < &hlist[NUM_DOMAINS_EXTEND]), AEE_EMEMPTR);
 	VERIFYC(QNode_IsQueuedZ(&hinfo->qn), AEE_ENOSUCHHANDLE);
 bail:
@@ -923,14 +945,20 @@ bail:
 
 int remote_handle_close(remote_handle h)
 {
-   char dlerrstr[255];
+   char *dlerrstr = NULL;
    int dlerr = 0, nErr = AEE_SUCCESS;
+   size_t err_str_len = MAX_DLERRSTR_LEN*sizeof(char);
 
-   VERIFY(AEE_SUCCESS == (nErr = remotectl_close(h, dlerrstr, sizeof(dlerrstr), &dlerr)));
+   VERIFYC(NULL != (dlerrstr = (char*)calloc(1, err_str_len)), AEE_ENOMEMORY);
+   VERIFY(AEE_SUCCESS == (nErr = remotectl_close(h, dlerrstr, err_str_len, &dlerr)));
    VERIFY(AEE_SUCCESS == (nErr = dlerr));
 bail:
    if (nErr != AEE_SUCCESS) {
-	FARF(HIGH, "Error %x: remote handle close failed. error %s\n", nErr, dlerrstr);
+        FARF(HIGH, "Error %x: remote handle close failed. error %s\n", nErr, dlerrstr);
+   }
+   if (dlerrstr) {
+        free(dlerrstr);
+        dlerrstr = NULL;
    }
    return nErr;
 }
@@ -1222,7 +1250,12 @@ bail:
 }
 
 int remote_mmap(int fd, uint32_t flags, uint32_t vaddrin, int size, uint32_t* vaddrout) {
-	return remote_mmap64(fd, flags, (uintptr_t)vaddrin, (int64_t)size, (uint64_t*)vaddrout);
+	uint64_t vaddrout_64;
+	int nErr = 0;
+
+	nErr = remote_mmap64(fd, flags, (uintptr_t)vaddrin, (int64_t)size, &vaddrout_64);
+	*vaddrout = (uint32_t)vaddrout_64;
+	return nErr;
 }
 
 int remote_munmap64(uint64_t vaddrout, int64_t size) {
